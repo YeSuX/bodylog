@@ -2,10 +2,20 @@ import { useThemeColor } from "@/hooks/use-theme-color";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale/zh-CN";
 import { useCallback, useState } from "react";
+import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SortableGridRenderItem } from "react-native-sortables";
 import Sortable from "react-native-sortables";
-import { Card, Input, ScrollView, Text, YStack } from "tamagui";
+import {
+  Button,
+  Card,
+  Dialog,
+  Input,
+  ScrollView,
+  Text,
+  XStack,
+  YStack,
+} from "tamagui";
 
 interface RecordItem {
   id: string;
@@ -32,6 +42,8 @@ export default function TodayScreen() {
   const formattedDate = format(today, "yyyy年M月d日 EEEE", { locale: zhCN });
   const [data, setData] = useState<RecordItem[]>(RECORD_DATA);
   const [recordValues, setRecordValues] = useState<RecordValues>({});
+  const [isWeightDialogOpen, setIsWeightDialogOpen] = useState(false);
+  const [weightInput, setWeightInput] = useState("");
 
   // 计算已记录的数量
   const recordCount = Object.values(recordValues).filter(
@@ -39,11 +51,26 @@ export default function TodayScreen() {
   ).length;
   const totalRecords = 4;
 
-  const handleValueChange = useCallback((id: string, value: string) => {
-    setRecordValues((prev) => ({
-      ...prev,
-      [id]: value,
-    }));
+  const handleWeightCardPress = useCallback(() => {
+    // 如果已有记录，预填充输入框
+    setWeightInput(recordValues.weight || "");
+    setIsWeightDialogOpen(true);
+  }, [recordValues.weight]);
+
+  const handleWeightConfirm = useCallback(() => {
+    if (weightInput.trim()) {
+      setRecordValues((prev) => ({
+        ...prev,
+        weight: weightInput.trim(),
+      }));
+    }
+    setIsWeightDialogOpen(false);
+    setWeightInput("");
+  }, [weightInput]);
+
+  const handleWeightCancel = useCallback(() => {
+    setIsWeightDialogOpen(false);
+    setWeightInput("");
   }, []);
 
   const renderItem = useCallback<SortableGridRenderItem<RecordItem>>(
@@ -51,7 +78,7 @@ export default function TodayScreen() {
       const isWeight = item.id === "weight";
       const currentValue = recordValues[item.id] || "";
 
-      return (
+      const cardContent = (
         <Card
           chromeless
           size="$4"
@@ -76,38 +103,24 @@ export default function TodayScreen() {
               </Text>
             </YStack>
 
-            {isWeight && (
-              <YStack gap="$2">
-                <Input
-                  size="$4"
-                  placeholder="请输入体重（kg）"
-                  value={currentValue}
-                  onChangeText={(text) => handleValueChange(item.id, text)}
-                  keyboardType="decimal-pad"
-                  borderWidth={1}
-                  borderColor="$borderColor"
-                  style={{
-                    backgroundColor,
-                    color: textColor,
-                  }}
-                  opacity={0.7}
-                />
-                {currentValue && (
-                  <Text
-                    fontSize={14}
-                    style={{ color: textColor }}
-                    opacity={0.6}
-                  >
-                    {currentValue} kg
-                  </Text>
-                )}
-              </YStack>
+            {isWeight && currentValue && (
+              <Text fontSize={16} style={{ color: textColor }} opacity={0.8}>
+                {currentValue} kg
+              </Text>
             )}
           </YStack>
         </Card>
       );
+
+      if (isWeight) {
+        return (
+          <Pressable onPress={handleWeightCardPress}>{cardContent}</Pressable>
+        );
+      }
+
+      return cardContent;
     },
-    [textColor, backgroundColor, recordValues, handleValueChange]
+    [textColor, backgroundColor, recordValues, handleWeightCardPress]
   );
 
   const handleDragEnd = useCallback(
@@ -148,6 +161,97 @@ export default function TodayScreen() {
           />
         </YStack>
       </ScrollView>
+
+      {/* 体重记录 Dialog */}
+      <Dialog
+        modal
+        open={isWeightDialogOpen}
+        onOpenChange={setIsWeightDialogOpen}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay
+            key="overlay"
+            animation="quick"
+            opacity={0.5}
+            enterStyle={{ opacity: 0 }}
+            exitStyle={{ opacity: 0 }}
+          />
+          <Dialog.Content
+            bordered
+            elevate
+            key="content"
+            animateOnly={["transform", "opacity"]}
+            animation={[
+              "quick",
+              {
+                opacity: {
+                  overshootClamping: true,
+                },
+              },
+            ]}
+            enterStyle={{ x: 0, y: -20, opacity: 0, scale: 0.9 }}
+            exitStyle={{ x: 0, y: 10, opacity: 0, scale: 0.95 }}
+            gap="$4"
+            style={{
+              backgroundColor,
+              borderColor: "$borderColor",
+            }}
+          >
+            <Dialog.Title fontSize={18} style={{ color: textColor }}>
+              记录体重
+            </Dialog.Title>
+
+            <YStack gap="$3">
+              <Input
+                size="$4"
+                placeholder="请输入体重（kg）"
+                value={weightInput}
+                onChangeText={setWeightInput}
+                keyboardType="decimal-pad"
+                borderWidth={1}
+                borderColor="$borderColor"
+                style={{
+                  backgroundColor,
+                  color: textColor,
+                }}
+                autoFocus
+              />
+
+              <XStack gap="$3" style={{ justifyContent: "flex-end" }}>
+                <Button
+                  size="$3"
+                  onPress={handleWeightCancel}
+                  chromeless
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "$borderColor",
+                  }}
+                >
+                  <Text style={{ color: textColor }} opacity={0.8}>
+                    取消
+                  </Text>
+                </Button>
+                <Button
+                  size="$3"
+                  onPress={handleWeightConfirm}
+                  style={{
+                    backgroundColor: textColor,
+                    opacity: 0.9,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: backgroundColor,
+                    }}
+                  >
+                    确认
+                  </Text>
+                </Button>
+              </XStack>
+            </YStack>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog>
     </YStack>
   );
 }
