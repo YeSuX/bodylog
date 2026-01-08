@@ -206,11 +206,16 @@ export default function TodayScreen() {
               },
             ]}
             enterStyle={{ x: 0, y: -20, opacity: 0, scale: 0.9 }}
-            exitStyle={{ x: 0, y: 10, opacity: 0, scale: 0.95 }}
+            exitStyle={{ x: 0, y: -20, opacity: 0, scale: 0.95 }}
             gap="$4"
             style={{
               backgroundColor,
               borderColor: "$borderColor",
+              position: "absolute",
+              top: insets.top + 24,
+              left: 16,
+              right: 16,
+              marginTop: 0,
             }}
           >
             <Dialog.Title fontSize={18} style={{ color: textColor }}>
