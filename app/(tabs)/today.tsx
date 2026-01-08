@@ -91,7 +91,7 @@ export default function TodayScreen() {
           {/* 可拖动的记录卡片网格 */}
           <Sortable.Grid
             columnGap={16}
-            columns={2}
+            columns={1}
             data={data}
             onDragEnd={handleDragEnd}
             renderItem={renderItem}
