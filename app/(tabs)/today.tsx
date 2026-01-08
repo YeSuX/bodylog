@@ -5,12 +5,16 @@ import { useCallback, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SortableGridRenderItem } from "react-native-sortables";
 import Sortable from "react-native-sortables";
-import { Card, ScrollView, Text, YStack } from "tamagui";
+import { Card, Input, ScrollView, Text, YStack } from "tamagui";
 
 interface RecordItem {
   id: string;
   title: string;
   description: string;
+}
+
+interface RecordValues {
+  [key: string]: string;
 }
 
 const RECORD_DATA: RecordItem[] = [
@@ -27,38 +31,83 @@ export default function TodayScreen() {
   const today = new Date();
   const formattedDate = format(today, "yyyy年M月d日 EEEE", { locale: zhCN });
   const [data, setData] = useState<RecordItem[]>(RECORD_DATA);
+  const [recordValues, setRecordValues] = useState<RecordValues>({});
 
-  // Placeholder: 记录进度（后续从状态管理获取）
-  const recordCount = 0;
+  // 计算已记录的数量
+  const recordCount = Object.values(recordValues).filter(
+    (value) => value && value.trim() !== ""
+  ).length;
   const totalRecords = 4;
 
+  const handleValueChange = useCallback((id: string, value: string) => {
+    setRecordValues((prev) => ({
+      ...prev,
+      [id]: value,
+    }));
+  }, []);
+
   const renderItem = useCallback<SortableGridRenderItem<RecordItem>>(
-    ({ item }) => (
-      <Card
-        chromeless
-        size="$4"
-        bordered
-        p="$4"
-        borderColor="$borderColor"
-        opacity={0.8}
-        style={{ backgroundColor }}
-      >
-        <YStack>
-          <Text
-            fontSize={16}
-            fontWeight="400"
-            style={{ color: textColor }}
-            mb="$2"
-          >
-            {item.title}
-          </Text>
-          <Text fontSize={14} style={{ color: textColor }} opacity={0.5}>
-            {item.description}
-          </Text>
-        </YStack>
-      </Card>
-    ),
-    [textColor, backgroundColor]
+    ({ item }) => {
+      const isWeight = item.id === "weight";
+      const currentValue = recordValues[item.id] || "";
+
+      return (
+        <Card
+          chromeless
+          size="$4"
+          bordered
+          p="$4"
+          borderColor="$borderColor"
+          opacity={0.8}
+          style={{ backgroundColor }}
+        >
+          <YStack gap="$3">
+            <YStack>
+              <Text
+                fontSize={16}
+                fontWeight="400"
+                style={{ color: textColor }}
+                mb="$2"
+              >
+                {item.title}
+              </Text>
+              <Text fontSize={14} style={{ color: textColor }} opacity={0.5}>
+                {item.description}
+              </Text>
+            </YStack>
+
+            {isWeight && (
+              <YStack gap="$2">
+                <Input
+                  size="$4"
+                  placeholder="请输入体重（kg）"
+                  value={currentValue}
+                  onChangeText={(text) => handleValueChange(item.id, text)}
+                  keyboardType="decimal-pad"
+                  borderWidth={1}
+                  borderColor="$borderColor"
+                  style={{
+                    backgroundColor,
+                    color: textColor,
+                  }}
+                  opacity={0.7}
+                />
+                {currentValue && (
+                  <Text
+                    fontSize={14}
+                    style={{ color: textColor }}
+                    opacity={0.6}
+                  >
+                    {currentValue} kg
+                  </Text>
+                )}
+              </YStack>
+            )}
+          </YStack>
+        </Card>
+      );
+    },
+    [textColor, backgroundColor, recordValues, handleValueChange]
   );
 
   const handleDragEnd = useCallback(
