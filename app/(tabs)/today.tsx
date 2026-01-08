@@ -2,7 +2,6 @@ import { useThemeColor } from "@/hooks/use-theme-color";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale/zh-CN";
 import { useCallback, useState } from "react";
-import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SortableGridRenderItem } from "react-native-sortables";
 import Sortable from "react-native-sortables";
@@ -78,7 +77,7 @@ export default function TodayScreen() {
       const isWeight = item.id === "weight";
       const currentValue = recordValues[item.id] || "";
 
-      const cardContent = (
+      return (
         <Card
           chromeless
           size="$4"
@@ -89,19 +88,44 @@ export default function TodayScreen() {
           style={{ backgroundColor }}
         >
           <YStack gap="$3">
-            <YStack>
-              <Text
-                fontSize={16}
-                fontWeight="400"
-                style={{ color: textColor }}
-                mb="$2"
-              >
-                {item.title}
-              </Text>
-              <Text fontSize={14} style={{ color: textColor }} opacity={0.5}>
-                {item.description}
-              </Text>
-            </YStack>
+            <XStack
+              style={{
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+              }}
+            >
+              <YStack flex={1}>
+                <Text
+                  fontSize={16}
+                  fontWeight="400"
+                  style={{ color: textColor }}
+                  mb="$2"
+                >
+                  {item.title}
+                </Text>
+                <Text fontSize={14} style={{ color: textColor }} opacity={0.5}>
+                  {item.description}
+                </Text>
+              </YStack>
+
+              {isWeight && (
+                <Button
+                  size="$2"
+                  chromeless
+                  onPress={handleWeightCardPress}
+                  px="$2"
+                  py="$1"
+                >
+                  <Text
+                    fontSize={14}
+                    style={{ color: textColor }}
+                    opacity={0.6}
+                  >
+                    {currentValue ? "编辑" : "记录"}
+                  </Text>
+                </Button>
+              )}
+            </XStack>
 
             {isWeight && currentValue && (
               <Text fontSize={16} style={{ color: textColor }} opacity={0.8}>
@@ -111,14 +135,6 @@ export default function TodayScreen() {
           </YStack>
         </Card>
       );
-
-      if (isWeight) {
-        return (
-          <Pressable onPress={handleWeightCardPress}>{cardContent}</Pressable>
-        );
-      }
-
-      return cardContent;
     },
     [textColor, backgroundColor, recordValues, handleWeightCardPress]
   );
