@@ -43,6 +43,9 @@ export default function TodayScreen() {
   const [recordValues, setRecordValues] = useState<RecordValues>({});
   const [isWeightDialogOpen, setIsWeightDialogOpen] = useState(false);
   const [weightInput, setWeightInput] = useState("");
+  const [isSleepDialogOpen, setIsSleepDialogOpen] = useState(false);
+  const [wakeUpTimeInput, setWakeUpTimeInput] = useState("");
+  const [sleepTimeInput, setSleepTimeInput] = useState("");
 
   // 计算已记录的数量
   const recordCount = Object.values(recordValues).filter(
@@ -72,9 +75,42 @@ export default function TodayScreen() {
     setWeightInput("");
   }, []);
 
+  const handleSleepCardPress = useCallback(() => {
+    // 如果已有记录，解析并预填充输入框
+    const sleepValue = recordValues.sleep || "";
+    if (sleepValue) {
+      const [wakeUp, sleep] = sleepValue.split(" | ");
+      setWakeUpTimeInput(wakeUp || "");
+      setSleepTimeInput(sleep || "");
+    } else {
+      setWakeUpTimeInput("");
+      setSleepTimeInput("");
+    }
+    setIsSleepDialogOpen(true);
+  }, [recordValues.sleep]);
+
+  const handleSleepConfirm = useCallback(() => {
+    if (wakeUpTimeInput.trim() && sleepTimeInput.trim()) {
+      setRecordValues((prev) => ({
+        ...prev,
+        sleep: `${wakeUpTimeInput.trim()} | ${sleepTimeInput.trim()}`,
+      }));
+    }
+    setIsSleepDialogOpen(false);
+    setWakeUpTimeInput("");
+    setSleepTimeInput("");
+  }, [wakeUpTimeInput, sleepTimeInput]);
+
+  const handleSleepCancel = useCallback(() => {
+    setIsSleepDialogOpen(false);
+    setWakeUpTimeInput("");
+    setSleepTimeInput("");
+  }, []);
+
   const renderItem = useCallback<SortableGridRenderItem<RecordItem>>(
     ({ item }) => {
       const isWeight = item.id === "weight";
+      const isSleep = item.id === "sleep";
       const currentValue = recordValues[item.id] || "";
 
       return (
@@ -108,11 +144,13 @@ export default function TodayScreen() {
                 </Text>
               </YStack>
 
-              {isWeight && (
+              {(isWeight || isSleep) && (
                 <Button
                   size="$2"
                   chromeless
-                  onPress={handleWeightCardPress}
+                  onPress={
+                    isWeight ? handleWeightCardPress : handleSleepCardPress
+                  }
                   px="$2"
                   py="$1"
                 >
@@ -132,11 +170,32 @@ export default function TodayScreen() {
                 {currentValue} kg
               </Text>
             )}
+
+            {isSleep && currentValue && (
+              <YStack gap="$1">
+                {currentValue.split(" | ").map((time, index) => (
+                  <Text
+                    key={index}
+                    fontSize={16}
+                    style={{ color: textColor }}
+                    opacity={0.8}
+                  >
+                    {index === 0 ? `起床：${time}` : `就寝：${time}`}
+                  </Text>
+                ))}
+              </YStack>
+            )}
           </YStack>
         </Card>
       );
     },
-    [textColor, backgroundColor, recordValues, handleWeightCardPress]
+    [
+      textColor,
+      backgroundColor,
+      recordValues,
+      handleWeightCardPress,
+      handleSleepCardPress,
+    ]
   );
 
   const handleDragEnd = useCallback(
@@ -255,6 +314,126 @@ export default function TodayScreen() {
                 <Button
                   size="$3"
                   onPress={handleWeightConfirm}
+                  style={{
+                    backgroundColor: textColor,
+                    opacity: 0.9,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: backgroundColor,
+                    }}
+                  >
+                    确认
+                  </Text>
+                </Button>
+              </XStack>
+            </YStack>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog>
+
+      {/* 睡眠记录 Dialog */}
+      <Dialog
+        modal
+        open={isSleepDialogOpen}
+        onOpenChange={setIsSleepDialogOpen}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay
+            key="overlay-sleep"
+            animation="quick"
+            opacity={0.5}
+            enterStyle={{ opacity: 0 }}
+            exitStyle={{ opacity: 0 }}
+          />
+          <Dialog.Content
+            bordered
+            elevate
+            key="content-sleep"
+            animateOnly={["transform", "opacity"]}
+            animation={[
+              "quick",
+              {
+                opacity: {
+                  overshootClamping: true,
+                },
+              },
+            ]}
+            enterStyle={{ x: 0, y: -20, opacity: 0, scale: 0.9 }}
+            exitStyle={{ x: 0, y: -20, opacity: 0, scale: 0.95 }}
+            gap="$4"
+            style={{
+              backgroundColor,
+              borderColor: "$borderColor",
+              position: "absolute",
+              top: insets.top + 24,
+              left: 16,
+              right: 16,
+              marginTop: 0,
+            }}
+          >
+            <Dialog.Title fontSize={18} style={{ color: textColor }}>
+              记录睡眠
+            </Dialog.Title>
+
+            <YStack gap="$3">
+              <YStack gap="$2">
+                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
+                  早晨起床时间
+                </Text>
+                <Input
+                  size="$4"
+                  placeholder="例如：07:30"
+                  value={wakeUpTimeInput}
+                  onChangeText={setWakeUpTimeInput}
+                  keyboardType="default"
+                  borderWidth={1}
+                  borderColor="$borderColor"
+                  style={{
+                    backgroundColor,
+                    color: textColor,
+                  }}
+                  autoFocus
+                />
+              </YStack>
+
+              <YStack gap="$2">
+                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
+                  晚上就寝时间
+                </Text>
+                <Input
+                  size="$4"
+                  placeholder="例如：23:00"
+                  value={sleepTimeInput}
+                  onChangeText={setSleepTimeInput}
+                  keyboardType="default"
+                  borderWidth={1}
+                  borderColor="$borderColor"
+                  style={{
+                    backgroundColor,
+                    color: textColor,
+                  }}
+                />
+              </YStack>
+
+              <XStack gap="$3" style={{ justifyContent: "flex-end" }}>
+                <Button
+                  size="$3"
+                  onPress={handleSleepCancel}
+                  chromeless
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "$borderColor",
+                  }}
+                >
+                  <Text style={{ color: textColor }} opacity={0.8}>
+                    取消
+                  </Text>
+                </Button>
+                <Button
+                  size="$3"
+                  onPress={handleSleepConfirm}
                   style={{
                     backgroundColor: textColor,
                     opacity: 0.9,
