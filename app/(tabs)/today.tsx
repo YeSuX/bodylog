@@ -1,39 +1,30 @@
+import { DietDialog } from "@/components/today/diet-dialog";
+import { ExerciseDialog } from "@/components/today/exercise-dialog";
+import { RecordCard } from "@/components/today/record-card";
+import {
+  DietContent,
+  ExerciseContent,
+  SleepContent,
+  WeightContent,
+} from "@/components/today/record-card-content";
+import { SleepDialog } from "@/components/today/sleep-dialog";
+import type {
+  DietRecord,
+  RecordItem,
+  RecordValues,
+} from "@/components/today/types";
+import { formatTime, parseTime } from "@/components/today/utils";
+import { WeightDialog } from "@/components/today/weight-dialog";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale/zh-CN";
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useState } from "react";
-import { Image, Platform } from "react-native";
+import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SortableGridRenderItem } from "react-native-sortables";
 import Sortable from "react-native-sortables";
-import {
-  Button,
-  Card,
-  Dialog,
-  Input,
-  ScrollView,
-  Text,
-  XStack,
-  YStack,
-} from "tamagui";
-
-interface RecordItem {
-  id: string;
-  title: string;
-  description: string;
-}
-
-interface RecordValues {
-  [key: string]: string;
-}
-
-interface DietRecord {
-  id: string;
-  photoUri: string;
-  time: string;
-}
+import { ScrollView, Text, YStack } from "tamagui";
 
 const RECORD_DATA: RecordItem[] = [
   { id: "weight", title: "体重", description: "记录体重" },
@@ -45,7 +36,6 @@ const RECORD_DATA: RecordItem[] = [
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const textColor = useThemeColor({}, "text");
-  const backgroundColor = useThemeColor({}, "background");
   const today = new Date();
   const formattedDate = format(today, "yyyy年M月d日 EEEE", { locale: zhCN });
   const [data, setData] = useState<RecordItem[]>(RECORD_DATA);
@@ -73,8 +63,8 @@ export default function TodayScreen() {
   ).length;
   const totalRecords = 4;
 
+  // 体重记录处理
   const handleWeightCardPress = useCallback(() => {
-    // 如果已有记录，预填充输入框
     setWeightInput(recordValues.weight || "");
     setIsWeightDialogOpen(true);
   }, [recordValues.weight]);
@@ -95,23 +85,8 @@ export default function TodayScreen() {
     setWeightInput("");
   }, []);
 
-  // 将时间格式化为 HH:mm 格式
-  const formatTime = useCallback((date: Date) => {
-    return format(date, "HH:mm");
-  }, []);
-
-  // 解析时间字符串为 Date 对象
-  const parseTime = useCallback((timeStr: string, defaultDate: Date) => {
-    if (!timeStr) return defaultDate;
-    const [hours, minutes] = timeStr.split(":").map(Number);
-    if (isNaN(hours) || isNaN(minutes)) return defaultDate;
-    const date = new Date(defaultDate);
-    date.setHours(hours, minutes, 0, 0);
-    return date;
-  }, []);
-
+  // 睡眠记录处理
   const handleSleepCardPress = useCallback(() => {
-    // 如果已有记录，解析并预填充时间
     const sleepValue = recordValues.sleep || "";
     if (sleepValue) {
       const [wakeUpStr, sleepStr] = sleepValue.split(" | ");
@@ -124,7 +99,7 @@ export default function TodayScreen() {
       setSleepTime(now);
     }
     setIsSleepDialogOpen(true);
-  }, [recordValues.sleep, parseTime]);
+  }, [recordValues.sleep]);
 
   const handleWakeUpTimeChange = useCallback(
     (event: any, selectedDate?: Date) => {
@@ -160,7 +135,7 @@ export default function TodayScreen() {
     setIsSleepDialogOpen(false);
     setShowWakeUpPicker(false);
     setShowSleepPicker(false);
-  }, [wakeUpTime, sleepTime, formatTime]);
+  }, [wakeUpTime, sleepTime]);
 
   const handleSleepCancel = useCallback(() => {
     setIsSleepDialogOpen(false);
@@ -168,8 +143,8 @@ export default function TodayScreen() {
     setShowSleepPicker(false);
   }, []);
 
+  // 运动记录处理
   const handleExerciseCardPress = useCallback(() => {
-    // 如果已有记录，解析并预填充
     const exerciseValue = recordValues.exercise || "";
     if (exerciseValue) {
       const parts = exerciseValue.split(" | ");
@@ -208,6 +183,7 @@ export default function TodayScreen() {
     setExerciseIntensity("");
   }, []);
 
+  // 饮食记录处理
   const handleDietCardPress = useCallback(() => {
     setDietPhotoUri("");
     setDietTime(new Date());
@@ -256,7 +232,7 @@ export default function TodayScreen() {
       setDietPhotoUri("");
       setShowDietTimePicker(false);
     }
-  }, [dietPhotoUri, dietTime, formatTime]);
+  }, [dietPhotoUri, dietTime]);
 
   const handleDietCancel = useCallback(() => {
     setIsDietDialogOpen(false);
@@ -268,6 +244,7 @@ export default function TodayScreen() {
     setDietRecords((prev) => prev.filter((record) => record.id !== id));
   }, []);
 
+  // 渲染记录卡片
   const renderItem = useCallback<SortableGridRenderItem<RecordItem>>(
     ({ item }) => {
       const isWeight = item.id === "weight";
@@ -276,159 +253,35 @@ export default function TodayScreen() {
       const isDiet = item.id === "diet";
       const currentValue = recordValues[item.id] || "";
 
+      const buttonText = isDiet ? "添加" : currentValue ? "编辑" : "记录";
+      const onPress = isWeight
+        ? handleWeightCardPress
+        : isSleep
+        ? handleSleepCardPress
+        : isExercise
+        ? handleExerciseCardPress
+        : handleDietCardPress;
+
       return (
-        <Card
-          chromeless
-          size="$4"
-          bordered
-          p="$4"
-          borderColor="$borderColor"
-          opacity={0.8}
-          style={{ backgroundColor }}
+        <RecordCard
+          title={item.title}
+          description={item.description}
+          buttonText={buttonText}
+          onButtonPress={onPress}
         >
-          <YStack gap="$3">
-            <XStack
-              style={{
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-              }}
-            >
-              <YStack flex={1}>
-                <Text
-                  fontSize={16}
-                  fontWeight="400"
-                  style={{ color: textColor }}
-                  mb="$2"
-                >
-                  {item.title}
-                </Text>
-                <Text fontSize={14} style={{ color: textColor }} opacity={0.5}>
-                  {item.description}
-                </Text>
-              </YStack>
-
-              {(isWeight || isSleep || isExercise || isDiet) && (
-                <Button
-                  size="$2"
-                  chromeless
-                  onPress={
-                    isWeight
-                      ? handleWeightCardPress
-                      : isSleep
-                      ? handleSleepCardPress
-                      : isExercise
-                      ? handleExerciseCardPress
-                      : handleDietCardPress
-                  }
-                  px="$2"
-                  py="$1"
-                >
-                  <Text
-                    fontSize={14}
-                    style={{ color: textColor }}
-                    opacity={0.6}
-                  >
-                    {isDiet ? "添加" : currentValue ? "编辑" : "记录"}
-                  </Text>
-                </Button>
-              )}
-            </XStack>
-
-            {isWeight && currentValue && (
-              <Text fontSize={16} style={{ color: textColor }} opacity={0.8}>
-                {currentValue} kg
-              </Text>
-            )}
-
-            {isSleep && currentValue && (
-              <YStack gap="$1">
-                {currentValue.split(" | ").map((time, index) => (
-                  <Text
-                    key={index}
-                    fontSize={16}
-                    style={{ color: textColor }}
-                    opacity={0.8}
-                  >
-                    {index === 0 ? `起床：${time}` : `就寝：${time}`}
-                  </Text>
-                ))}
-              </YStack>
-            )}
-
-            {isExercise && currentValue && (
-              <YStack gap="$1">
-                {currentValue.split(" | ").map((info, index) => (
-                  <Text
-                    key={index}
-                    fontSize={16}
-                    style={{ color: textColor }}
-                    opacity={0.8}
-                  >
-                    {index === 0
-                      ? `类型：${info}`
-                      : index === 1
-                      ? `时长：${info}`
-                      : `强度：${info}`}
-                  </Text>
-                ))}
-              </YStack>
-            )}
-
-            {isDiet && dietRecords.length > 0 && (
-              <YStack gap="$2">
-                {dietRecords.map((record) => (
-                  <XStack
-                    key={record.id}
-                    gap="$2"
-                    borderWidth={1}
-                    borderColor="$borderColor"
-                    p="$2"
-                    style={{ alignItems: "center", borderRadius: 8 }}
-                  >
-                    <Image
-                      source={{ uri: record.photoUri }}
-                      style={{
-                        width: 60,
-                        height: 60,
-                        borderRadius: 4,
-                      }}
-                      resizeMode="cover"
-                    />
-                    <YStack flex={1}>
-                      <Text
-                        fontSize={14}
-                        style={{ color: textColor }}
-                        opacity={0.8}
-                      >
-                        时间：{record.time}
-                      </Text>
-                    </YStack>
-                    <Button
-                      size="$2"
-                      chromeless
-                      onPress={() => handleDeleteDietRecord(record.id)}
-                      px="$2"
-                      py="$1"
-                    >
-                      <Text
-                        fontSize={12}
-                        style={{ color: textColor }}
-                        opacity={0.5}
-                      >
-                        删除
-                      </Text>
-                    </Button>
-                  </XStack>
-                ))}
-              </YStack>
-            )}
-          </YStack>
-        </Card>
+          {isWeight && <WeightContent value={currentValue} />}
+          {isSleep && <SleepContent value={currentValue} />}
+          {isExercise && <ExerciseContent value={currentValue} />}
+          {isDiet && (
+            <DietContent
+              records={dietRecords}
+              onDelete={handleDeleteDietRecord}
+            />
+          )}
+        </RecordCard>
       );
     },
     [
-      textColor,
-      backgroundColor,
       recordValues,
       dietRecords,
       handleWeightCardPress,
@@ -478,651 +331,63 @@ export default function TodayScreen() {
         </YStack>
       </ScrollView>
 
-      {/* 体重记录 Dialog */}
-      <Dialog
-        modal
+      {/* 体重记录弹窗 */}
+      <WeightDialog
         open={isWeightDialogOpen}
         onOpenChange={setIsWeightDialogOpen}
-      >
-        <Dialog.Portal>
-          <Dialog.Overlay
-            key="overlay"
-            animation="quick"
-            opacity={0.5}
-            enterStyle={{ opacity: 0 }}
-            exitStyle={{ opacity: 0 }}
-          />
-          <Dialog.Content
-            bordered
-            elevate
-            key="content"
-            animateOnly={["transform", "opacity"]}
-            animation={[
-              "quick",
-              {
-                opacity: {
-                  overshootClamping: true,
-                },
-              },
-            ]}
-            enterStyle={{ x: 0, y: -20, opacity: 0, scale: 0.9 }}
-            exitStyle={{ x: 0, y: -20, opacity: 0, scale: 0.95 }}
-            gap="$4"
-            style={{
-              backgroundColor,
-              borderColor: "$borderColor",
-              position: "absolute",
-              top: insets.top + 24,
-              left: 16,
-              right: 16,
-              marginTop: 0,
-            }}
-          >
-            <Dialog.Title fontSize={18} style={{ color: textColor }}>
-              记录体重
-            </Dialog.Title>
+        value={weightInput}
+        onValueChange={setWeightInput}
+        onConfirm={handleWeightConfirm}
+        onCancel={handleWeightCancel}
+        topInset={insets.top}
+      />
 
-            <YStack gap="$3">
-              <Input
-                size="$4"
-                placeholder="请输入体重（kg）"
-                value={weightInput}
-                onChangeText={setWeightInput}
-                keyboardType="decimal-pad"
-                borderWidth={1}
-                borderColor="$borderColor"
-                style={{
-                  backgroundColor,
-                  color: textColor,
-                }}
-                autoFocus
-              />
-
-              <XStack gap="$3" style={{ justifyContent: "flex-end" }}>
-                <Button
-                  size="$3"
-                  onPress={handleWeightCancel}
-                  chromeless
-                  style={{
-                    borderWidth: 1,
-                    borderColor: "$borderColor",
-                  }}
-                >
-                  <Text style={{ color: textColor }} opacity={0.8}>
-                    取消
-                  </Text>
-                </Button>
-                <Button
-                  size="$3"
-                  onPress={handleWeightConfirm}
-                  style={{
-                    backgroundColor: textColor,
-                    opacity: 0.9,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: backgroundColor,
-                    }}
-                  >
-                    确认
-                  </Text>
-                </Button>
-              </XStack>
-            </YStack>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog>
-
-      {/* 睡眠记录 Dialog */}
-      <Dialog
-        modal
+      {/* 睡眠记录弹窗 */}
+      <SleepDialog
         open={isSleepDialogOpen}
         onOpenChange={setIsSleepDialogOpen}
-      >
-        <Dialog.Portal>
-          <Dialog.Overlay
-            key="overlay-sleep"
-            animation="quick"
-            opacity={0.5}
-            enterStyle={{ opacity: 0 }}
-            exitStyle={{ opacity: 0 }}
-          />
-          <Dialog.Content
-            bordered
-            elevate
-            key="content-sleep"
-            animateOnly={["transform", "opacity"]}
-            animation={[
-              "quick",
-              {
-                opacity: {
-                  overshootClamping: true,
-                },
-              },
-            ]}
-            enterStyle={{ x: 0, y: -20, opacity: 0, scale: 0.9 }}
-            exitStyle={{ x: 0, y: -20, opacity: 0, scale: 0.95 }}
-            gap="$4"
-            style={{
-              backgroundColor,
-              borderColor: "$borderColor",
-              position: "absolute",
-              top: insets.top + 24,
-              left: 16,
-              right: 16,
-              marginTop: 0,
-            }}
-          >
-            <Dialog.Title fontSize={18} style={{ color: textColor }}>
-              记录睡眠
-            </Dialog.Title>
+        wakeUpTime={wakeUpTime}
+        sleepTime={sleepTime}
+        onWakeUpTimeChange={handleWakeUpTimeChange}
+        onSleepTimeChange={handleSleepTimeChange}
+        showWakeUpPicker={showWakeUpPicker}
+        showSleepPicker={showSleepPicker}
+        onShowWakeUpPicker={setShowWakeUpPicker}
+        onShowSleepPicker={setShowSleepPicker}
+        onConfirm={handleSleepConfirm}
+        onCancel={handleSleepCancel}
+        topInset={insets.top}
+      />
 
-            <YStack gap="$3">
-              <YStack gap="$2">
-                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
-                  早晨起床时间
-                </Text>
-                {Platform.OS === "ios" ? (
-                  <DateTimePicker
-                    value={wakeUpTime}
-                    mode="time"
-                    display="spinner"
-                    onChange={handleWakeUpTimeChange}
-                    is24Hour={true}
-                    style={{
-                      backgroundColor: "transparent",
-                    }}
-                  />
-                ) : (
-                  <>
-                    <Button
-                      size="$4"
-                      chromeless
-                      onPress={() => setShowWakeUpPicker(true)}
-                      borderWidth={1}
-                      borderColor="$borderColor"
-                      style={{
-                        backgroundColor,
-                        justifyContent: "flex-start",
-                      }}
-                    >
-                      <Input
-                        size="$4"
-                        placeholder="选择起床时间"
-                        value={formatTime(wakeUpTime)}
-                        editable={false}
-                        borderWidth={0}
-                        style={{
-                          backgroundColor: "transparent",
-                          color: textColor,
-                          flex: 1,
-                        }}
-                      />
-                    </Button>
-                    {showWakeUpPicker && (
-                      <DateTimePicker
-                        value={wakeUpTime}
-                        mode="time"
-                        display="default"
-                        onChange={handleWakeUpTimeChange}
-                        is24Hour={true}
-                      />
-                    )}
-                  </>
-                )}
-              </YStack>
-
-              <YStack gap="$2">
-                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
-                  晚上就寝时间
-                </Text>
-                {Platform.OS === "ios" ? (
-                  <DateTimePicker
-                    value={sleepTime}
-                    mode="time"
-                    display="spinner"
-                    onChange={handleSleepTimeChange}
-                    is24Hour={true}
-                    style={{
-                      backgroundColor: "transparent",
-                    }}
-                  />
-                ) : (
-                  <>
-                    <Button
-                      size="$4"
-                      chromeless
-                      onPress={() => setShowSleepPicker(true)}
-                      borderWidth={1}
-                      borderColor="$borderColor"
-                      style={{
-                        backgroundColor,
-                        justifyContent: "flex-start",
-                      }}
-                    >
-                      <Input
-                        size="$4"
-                        placeholder="选择就寝时间"
-                        value={formatTime(sleepTime)}
-                        editable={false}
-                        borderWidth={0}
-                        style={{
-                          backgroundColor: "transparent",
-                          color: textColor,
-                          flex: 1,
-                        }}
-                      />
-                    </Button>
-                    {showSleepPicker && (
-                      <DateTimePicker
-                        value={sleepTime}
-                        mode="time"
-                        display="default"
-                        onChange={handleSleepTimeChange}
-                        is24Hour={true}
-                      />
-                    )}
-                  </>
-                )}
-              </YStack>
-
-              <XStack gap="$3" style={{ justifyContent: "flex-end" }}>
-                <Button
-                  size="$3"
-                  onPress={handleSleepCancel}
-                  chromeless
-                  style={{
-                    borderWidth: 1,
-                    borderColor: "$borderColor",
-                  }}
-                >
-                  <Text style={{ color: textColor }} opacity={0.8}>
-                    取消
-                  </Text>
-                </Button>
-                <Button
-                  size="$3"
-                  onPress={handleSleepConfirm}
-                  style={{
-                    backgroundColor: textColor,
-                    opacity: 0.9,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: backgroundColor,
-                    }}
-                  >
-                    确认
-                  </Text>
-                </Button>
-              </XStack>
-            </YStack>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog>
-
-      {/* 运动记录 Dialog */}
-      <Dialog
-        modal
+      {/* 运动记录弹窗 */}
+      <ExerciseDialog
         open={isExerciseDialogOpen}
         onOpenChange={setIsExerciseDialogOpen}
-      >
-        <Dialog.Portal>
-          <Dialog.Overlay
-            key="overlay-exercise"
-            animation="quick"
-            opacity={0.5}
-            enterStyle={{ opacity: 0 }}
-            exitStyle={{ opacity: 0 }}
-          />
-          <Dialog.Content
-            bordered
-            elevate
-            key="content-exercise"
-            animateOnly={["transform", "opacity"]}
-            animation={[
-              "quick",
-              {
-                opacity: {
-                  overshootClamping: true,
-                },
-              },
-            ]}
-            enterStyle={{ x: 0, y: -20, opacity: 0, scale: 0.9 }}
-            exitStyle={{ x: 0, y: -20, opacity: 0, scale: 0.95 }}
-            gap="$4"
-            style={{
-              backgroundColor,
-              borderColor: "$borderColor",
-              position: "absolute",
-              top: insets.top + 24,
-              left: 16,
-              right: 16,
-              marginTop: 0,
-            }}
-          >
-            <Dialog.Title fontSize={18} style={{ color: textColor }}>
-              记录运动
-            </Dialog.Title>
+        exerciseType={exerciseType}
+        exerciseDuration={exerciseDuration}
+        exerciseIntensity={exerciseIntensity}
+        onExerciseTypeChange={setExerciseType}
+        onExerciseDurationChange={setExerciseDuration}
+        onExerciseIntensityChange={setExerciseIntensity}
+        onConfirm={handleExerciseConfirm}
+        onCancel={handleExerciseCancel}
+        topInset={insets.top}
+      />
 
-            <YStack gap="$3">
-              <YStack gap="$2">
-                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
-                  运动类型
-                </Text>
-                <XStack gap="$2" flexWrap="wrap">
-                  {["跑步", "游泳", "骑行", "瑜伽", "力量训练", "其他"].map(
-                    (type) => (
-                      <Button
-                        key={type}
-                        size="$3"
-                        chromeless
-                        onPress={() => setExerciseType(type)}
-                        style={{
-                          borderWidth: 1,
-                          borderColor:
-                            exerciseType === type ? textColor : "$borderColor",
-                          backgroundColor:
-                            exerciseType === type ? textColor : backgroundColor,
-                          opacity: exerciseType === type ? 0.9 : 0.8,
-                        }}
-                      >
-                        <Text
-                          fontSize={14}
-                          style={{
-                            color:
-                              exerciseType === type
-                                ? backgroundColor
-                                : textColor,
-                          }}
-                        >
-                          {type}
-                        </Text>
-                      </Button>
-                    )
-                  )}
-                </XStack>
-              </YStack>
-
-              <YStack gap="$2">
-                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
-                  时长（分钟）
-                </Text>
-                <Input
-                  size="$4"
-                  placeholder="请输入运动时长"
-                  value={exerciseDuration}
-                  onChangeText={setExerciseDuration}
-                  keyboardType="numeric"
-                  borderWidth={1}
-                  borderColor="$borderColor"
-                  style={{
-                    backgroundColor,
-                    color: textColor,
-                  }}
-                />
-              </YStack>
-
-              <YStack gap="$2">
-                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
-                  运动强度
-                </Text>
-                <XStack gap="$2">
-                  {["轻松", "适中", "困难"].map((intensity) => (
-                    <Button
-                      key={intensity}
-                      size="$3"
-                      chromeless
-                      flex={1}
-                      onPress={() => setExerciseIntensity(intensity)}
-                      style={{
-                        borderWidth: 1,
-                        borderColor:
-                          exerciseIntensity === intensity
-                            ? textColor
-                            : "$borderColor",
-                        backgroundColor:
-                          exerciseIntensity === intensity
-                            ? textColor
-                            : backgroundColor,
-                        opacity: exerciseIntensity === intensity ? 0.9 : 0.8,
-                      }}
-                    >
-                      <Text
-                        fontSize={14}
-                        style={{
-                          color:
-                            exerciseIntensity === intensity
-                              ? backgroundColor
-                              : textColor,
-                        }}
-                      >
-                        {intensity}
-                      </Text>
-                    </Button>
-                  ))}
-                </XStack>
-              </YStack>
-
-              <XStack gap="$3" style={{ justifyContent: "flex-end" }}>
-                <Button
-                  size="$3"
-                  onPress={handleExerciseCancel}
-                  chromeless
-                  style={{
-                    borderWidth: 1,
-                    borderColor: "$borderColor",
-                  }}
-                >
-                  <Text style={{ color: textColor }} opacity={0.8}>
-                    取消
-                  </Text>
-                </Button>
-                <Button
-                  size="$3"
-                  onPress={handleExerciseConfirm}
-                  disabled={
-                    !exerciseType.trim() ||
-                    !exerciseDuration.trim() ||
-                    !exerciseIntensity.trim()
-                  }
-                  style={{
-                    backgroundColor: textColor,
-                    opacity:
-                      !exerciseType.trim() ||
-                      !exerciseDuration.trim() ||
-                      !exerciseIntensity.trim()
-                        ? 0.5
-                        : 0.9,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: backgroundColor,
-                    }}
-                  >
-                    确认
-                  </Text>
-                </Button>
-              </XStack>
-            </YStack>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog>
-
-      {/* 饮食记录 Dialog */}
-      <Dialog modal open={isDietDialogOpen} onOpenChange={setIsDietDialogOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay
-            key="overlay-diet"
-            animation="quick"
-            opacity={0.5}
-            enterStyle={{ opacity: 0 }}
-            exitStyle={{ opacity: 0 }}
-          />
-          <Dialog.Content
-            bordered
-            elevate
-            key="content-diet"
-            animateOnly={["transform", "opacity"]}
-            animation={[
-              "quick",
-              {
-                opacity: {
-                  overshootClamping: true,
-                },
-              },
-            ]}
-            enterStyle={{ x: 0, y: -20, opacity: 0, scale: 0.9 }}
-            exitStyle={{ x: 0, y: -20, opacity: 0, scale: 0.95 }}
-            gap="$4"
-            style={{
-              backgroundColor,
-              borderColor: "$borderColor",
-              position: "absolute",
-              top: insets.top + 24,
-              left: 16,
-              right: 16,
-              marginTop: 0,
-            }}
-          >
-            <Dialog.Title fontSize={18} style={{ color: textColor }}>
-              记录饮食
-            </Dialog.Title>
-
-            <YStack gap="$3">
-              <YStack gap="$2">
-                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
-                  饮食照片
-                </Text>
-                <Button
-                  size="$4"
-                  chromeless
-                  onPress={handlePickImage}
-                  borderWidth={1}
-                  borderStyle="dashed"
-                  borderColor="$borderColor"
-                  height={120}
-                  style={{
-                    backgroundColor,
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  {dietPhotoUri ? (
-                    <Image
-                      source={{ uri: dietPhotoUri }}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        borderRadius: 8,
-                      }}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Text
-                      fontSize={14}
-                      style={{ color: textColor }}
-                      opacity={0.5}
-                    >
-                      点击选择照片
-                    </Text>
-                  )}
-                </Button>
-              </YStack>
-
-              <YStack gap="$2">
-                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
-                  用餐时间
-                </Text>
-                {Platform.OS === "ios" ? (
-                  <DateTimePicker
-                    value={dietTime}
-                    mode="time"
-                    display="spinner"
-                    onChange={handleDietTimeChange}
-                    is24Hour={true}
-                    style={{
-                      backgroundColor: "transparent",
-                    }}
-                  />
-                ) : (
-                  <>
-                    <Button
-                      size="$4"
-                      chromeless
-                      onPress={() => setShowDietTimePicker(true)}
-                      borderWidth={1}
-                      borderColor="$borderColor"
-                      style={{
-                        backgroundColor,
-                        justifyContent: "flex-start",
-                      }}
-                    >
-                      <Input
-                        size="$4"
-                        placeholder="选择用餐时间"
-                        value={formatTime(dietTime)}
-                        editable={false}
-                        borderWidth={0}
-                        style={{
-                          backgroundColor: "transparent",
-                          color: textColor,
-                          flex: 1,
-                        }}
-                      />
-                    </Button>
-                    {showDietTimePicker && (
-                      <DateTimePicker
-                        value={dietTime}
-                        mode="time"
-                        display="default"
-                        onChange={handleDietTimeChange}
-                        is24Hour={true}
-                      />
-                    )}
-                  </>
-                )}
-              </YStack>
-
-              <XStack gap="$3" style={{ justifyContent: "flex-end" }}>
-                <Button
-                  size="$3"
-                  onPress={handleDietCancel}
-                  chromeless
-                  style={{
-                    borderWidth: 1,
-                    borderColor: "$borderColor",
-                  }}
-                >
-                  <Text style={{ color: textColor }} opacity={0.8}>
-                    取消
-                  </Text>
-                </Button>
-                <Button
-                  size="$3"
-                  onPress={handleDietConfirm}
-                  disabled={!dietPhotoUri.trim()}
-                  style={{
-                    backgroundColor: textColor,
-                    opacity: !dietPhotoUri.trim() ? 0.5 : 0.9,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: backgroundColor,
-                    }}
-                  >
-                    添加
-                  </Text>
-                </Button>
-              </XStack>
-            </YStack>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog>
+      {/* 饮食记录弹窗 */}
+      <DietDialog
+        open={isDietDialogOpen}
+        onOpenChange={setIsDietDialogOpen}
+        photoUri={dietPhotoUri}
+        dietTime={dietTime}
+        showTimePicker={showDietTimePicker}
+        onShowTimePicker={setShowDietTimePicker}
+        onTimeChange={handleDietTimeChange}
+        onPickImage={handlePickImage}
+        onConfirm={handleDietConfirm}
+        onCancel={handleDietCancel}
+        topInset={insets.top}
+      />
     </YStack>
   );
 }
