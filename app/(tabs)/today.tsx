@@ -2,8 +2,9 @@ import { useThemeColor } from "@/hooks/use-theme-color";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale/zh-CN";
+import * as ImagePicker from "expo-image-picker";
 import { useCallback, useState } from "react";
-import { Platform } from "react-native";
+import { Image, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SortableGridRenderItem } from "react-native-sortables";
 import Sortable from "react-native-sortables";
@@ -26,6 +27,12 @@ interface RecordItem {
 
 interface RecordValues {
   [key: string]: string;
+}
+
+interface DietRecord {
+  id: string;
+  photoUri: string;
+  time: string;
 }
 
 const RECORD_DATA: RecordItem[] = [
@@ -54,6 +61,11 @@ export default function TodayScreen() {
   const [exerciseType, setExerciseType] = useState("");
   const [exerciseDuration, setExerciseDuration] = useState("");
   const [exerciseIntensity, setExerciseIntensity] = useState("");
+  const [isDietDialogOpen, setIsDietDialogOpen] = useState(false);
+  const [dietRecords, setDietRecords] = useState<DietRecord[]>([]);
+  const [dietPhotoUri, setDietPhotoUri] = useState("");
+  const [dietTime, setDietTime] = useState(new Date());
+  const [showDietTimePicker, setShowDietTimePicker] = useState(false);
 
   // 计算已记录的数量
   const recordCount = Object.values(recordValues).filter(
@@ -196,11 +208,72 @@ export default function TodayScreen() {
     setExerciseIntensity("");
   }, []);
 
+  const handleDietCardPress = useCallback(() => {
+    setDietPhotoUri("");
+    setDietTime(new Date());
+    setIsDietDialogOpen(true);
+  }, []);
+
+  const handlePickImage = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      alert("需要相册权限才能选择照片");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setDietPhotoUri(result.assets[0].uri);
+    }
+  }, []);
+
+  const handleDietTimeChange = useCallback(
+    (event: any, selectedDate?: Date) => {
+      if (Platform.OS === "android") {
+        setShowDietTimePicker(false);
+      }
+      if (selectedDate) {
+        setDietTime(selectedDate);
+      }
+    },
+    []
+  );
+
+  const handleDietConfirm = useCallback(() => {
+    if (dietPhotoUri.trim()) {
+      const newRecord: DietRecord = {
+        id: Date.now().toString(),
+        photoUri: dietPhotoUri,
+        time: formatTime(dietTime),
+      };
+      setDietRecords((prev) => [...prev, newRecord]);
+      setIsDietDialogOpen(false);
+      setDietPhotoUri("");
+      setShowDietTimePicker(false);
+    }
+  }, [dietPhotoUri, dietTime, formatTime]);
+
+  const handleDietCancel = useCallback(() => {
+    setIsDietDialogOpen(false);
+    setDietPhotoUri("");
+    setShowDietTimePicker(false);
+  }, []);
+
+  const handleDeleteDietRecord = useCallback((id: string) => {
+    setDietRecords((prev) => prev.filter((record) => record.id !== id));
+  }, []);
+
   const renderItem = useCallback<SortableGridRenderItem<RecordItem>>(
     ({ item }) => {
       const isWeight = item.id === "weight";
       const isSleep = item.id === "sleep";
       const isExercise = item.id === "exercise";
+      const isDiet = item.id === "diet";
       const currentValue = recordValues[item.id] || "";
 
       return (
@@ -234,7 +307,7 @@ export default function TodayScreen() {
                 </Text>
               </YStack>
 
-              {(isWeight || isSleep || isExercise) && (
+              {(isWeight || isSleep || isExercise || isDiet) && (
                 <Button
                   size="$2"
                   chromeless
@@ -243,7 +316,9 @@ export default function TodayScreen() {
                       ? handleWeightCardPress
                       : isSleep
                       ? handleSleepCardPress
-                      : handleExerciseCardPress
+                      : isExercise
+                      ? handleExerciseCardPress
+                      : handleDietCardPress
                   }
                   px="$2"
                   py="$1"
@@ -253,7 +328,7 @@ export default function TodayScreen() {
                     style={{ color: textColor }}
                     opacity={0.6}
                   >
-                    {currentValue ? "编辑" : "记录"}
+                    {isDiet ? "添加" : currentValue ? "编辑" : "记录"}
                   </Text>
                 </Button>
               )}
@@ -298,6 +373,55 @@ export default function TodayScreen() {
                 ))}
               </YStack>
             )}
+
+            {isDiet && dietRecords.length > 0 && (
+              <YStack gap="$2">
+                {dietRecords.map((record) => (
+                  <XStack
+                    key={record.id}
+                    gap="$2"
+                    borderWidth={1}
+                    borderColor="$borderColor"
+                    p="$2"
+                    style={{ alignItems: "center", borderRadius: 8 }}
+                  >
+                    <Image
+                      source={{ uri: record.photoUri }}
+                      style={{
+                        width: 60,
+                        height: 60,
+                        borderRadius: 4,
+                      }}
+                      resizeMode="cover"
+                    />
+                    <YStack flex={1}>
+                      <Text
+                        fontSize={14}
+                        style={{ color: textColor }}
+                        opacity={0.8}
+                      >
+                        时间：{record.time}
+                      </Text>
+                    </YStack>
+                    <Button
+                      size="$2"
+                      chromeless
+                      onPress={() => handleDeleteDietRecord(record.id)}
+                      px="$2"
+                      py="$1"
+                    >
+                      <Text
+                        fontSize={12}
+                        style={{ color: textColor }}
+                        opacity={0.5}
+                      >
+                        删除
+                      </Text>
+                    </Button>
+                  </XStack>
+                ))}
+              </YStack>
+            )}
           </YStack>
         </Card>
       );
@@ -306,9 +430,12 @@ export default function TodayScreen() {
       textColor,
       backgroundColor,
       recordValues,
+      dietRecords,
       handleWeightCardPress,
       handleSleepCardPress,
       handleExerciseCardPress,
+      handleDietCardPress,
+      handleDeleteDietRecord,
     ]
   );
 
@@ -817,6 +944,178 @@ export default function TodayScreen() {
                     }}
                   >
                     确认
+                  </Text>
+                </Button>
+              </XStack>
+            </YStack>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog>
+
+      {/* 饮食记录 Dialog */}
+      <Dialog modal open={isDietDialogOpen} onOpenChange={setIsDietDialogOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay
+            key="overlay-diet"
+            animation="quick"
+            opacity={0.5}
+            enterStyle={{ opacity: 0 }}
+            exitStyle={{ opacity: 0 }}
+          />
+          <Dialog.Content
+            bordered
+            elevate
+            key="content-diet"
+            animateOnly={["transform", "opacity"]}
+            animation={[
+              "quick",
+              {
+                opacity: {
+                  overshootClamping: true,
+                },
+              },
+            ]}
+            enterStyle={{ x: 0, y: -20, opacity: 0, scale: 0.9 }}
+            exitStyle={{ x: 0, y: -20, opacity: 0, scale: 0.95 }}
+            gap="$4"
+            style={{
+              backgroundColor,
+              borderColor: "$borderColor",
+              position: "absolute",
+              top: insets.top + 24,
+              left: 16,
+              right: 16,
+              marginTop: 0,
+            }}
+          >
+            <Dialog.Title fontSize={18} style={{ color: textColor }}>
+              记录饮食
+            </Dialog.Title>
+
+            <YStack gap="$3">
+              <YStack gap="$2">
+                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
+                  饮食照片
+                </Text>
+                <Button
+                  size="$4"
+                  chromeless
+                  onPress={handlePickImage}
+                  borderWidth={1}
+                  borderStyle="dashed"
+                  borderColor="$borderColor"
+                  height={120}
+                  style={{
+                    backgroundColor,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  {dietPhotoUri ? (
+                    <Image
+                      source={{ uri: dietPhotoUri }}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        borderRadius: 8,
+                      }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Text
+                      fontSize={14}
+                      style={{ color: textColor }}
+                      opacity={0.5}
+                    >
+                      点击选择照片
+                    </Text>
+                  )}
+                </Button>
+              </YStack>
+
+              <YStack gap="$2">
+                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
+                  用餐时间
+                </Text>
+                {Platform.OS === "ios" ? (
+                  <DateTimePicker
+                    value={dietTime}
+                    mode="time"
+                    display="spinner"
+                    onChange={handleDietTimeChange}
+                    is24Hour={true}
+                    style={{
+                      backgroundColor: "transparent",
+                    }}
+                  />
+                ) : (
+                  <>
+                    <Button
+                      size="$4"
+                      chromeless
+                      onPress={() => setShowDietTimePicker(true)}
+                      borderWidth={1}
+                      borderColor="$borderColor"
+                      style={{
+                        backgroundColor,
+                        justifyContent: "flex-start",
+                      }}
+                    >
+                      <Input
+                        size="$4"
+                        placeholder="选择用餐时间"
+                        value={formatTime(dietTime)}
+                        editable={false}
+                        borderWidth={0}
+                        style={{
+                          backgroundColor: "transparent",
+                          color: textColor,
+                          flex: 1,
+                        }}
+                      />
+                    </Button>
+                    {showDietTimePicker && (
+                      <DateTimePicker
+                        value={dietTime}
+                        mode="time"
+                        display="default"
+                        onChange={handleDietTimeChange}
+                        is24Hour={true}
+                      />
+                    )}
+                  </>
+                )}
+              </YStack>
+
+              <XStack gap="$3" style={{ justifyContent: "flex-end" }}>
+                <Button
+                  size="$3"
+                  onPress={handleDietCancel}
+                  chromeless
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "$borderColor",
+                  }}
+                >
+                  <Text style={{ color: textColor }} opacity={0.8}>
+                    取消
+                  </Text>
+                </Button>
+                <Button
+                  size="$3"
+                  onPress={handleDietConfirm}
+                  disabled={!dietPhotoUri.trim()}
+                  style={{
+                    backgroundColor: textColor,
+                    opacity: !dietPhotoUri.trim() ? 0.5 : 0.9,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: backgroundColor,
+                    }}
+                  >
+                    添加
                   </Text>
                 </Button>
               </XStack>
