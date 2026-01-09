@@ -50,6 +50,10 @@ export default function TodayScreen() {
   const [sleepTime, setSleepTime] = useState(new Date());
   const [showWakeUpPicker, setShowWakeUpPicker] = useState(false);
   const [showSleepPicker, setShowSleepPicker] = useState(false);
+  const [isExerciseDialogOpen, setIsExerciseDialogOpen] = useState(false);
+  const [exerciseType, setExerciseType] = useState("");
+  const [exerciseDuration, setExerciseDuration] = useState("");
+  const [exerciseIntensity, setExerciseIntensity] = useState("");
 
   // 计算已记录的数量
   const recordCount = Object.values(recordValues).filter(
@@ -152,10 +156,51 @@ export default function TodayScreen() {
     setShowSleepPicker(false);
   }, []);
 
+  const handleExerciseCardPress = useCallback(() => {
+    // 如果已有记录，解析并预填充
+    const exerciseValue = recordValues.exercise || "";
+    if (exerciseValue) {
+      const parts = exerciseValue.split(" | ");
+      setExerciseType(parts[0] || "");
+      setExerciseDuration(parts[1]?.replace("分钟", "") || "");
+      setExerciseIntensity(parts[2] || "");
+    } else {
+      setExerciseType("");
+      setExerciseDuration("");
+      setExerciseIntensity("");
+    }
+    setIsExerciseDialogOpen(true);
+  }, [recordValues.exercise]);
+
+  const handleExerciseConfirm = useCallback(() => {
+    if (
+      exerciseType.trim() &&
+      exerciseDuration.trim() &&
+      exerciseIntensity.trim()
+    ) {
+      setRecordValues((prev) => ({
+        ...prev,
+        exercise: `${exerciseType.trim()} | ${exerciseDuration.trim()}分钟 | ${exerciseIntensity.trim()}`,
+      }));
+      setIsExerciseDialogOpen(false);
+      setExerciseType("");
+      setExerciseDuration("");
+      setExerciseIntensity("");
+    }
+  }, [exerciseType, exerciseDuration, exerciseIntensity]);
+
+  const handleExerciseCancel = useCallback(() => {
+    setIsExerciseDialogOpen(false);
+    setExerciseType("");
+    setExerciseDuration("");
+    setExerciseIntensity("");
+  }, []);
+
   const renderItem = useCallback<SortableGridRenderItem<RecordItem>>(
     ({ item }) => {
       const isWeight = item.id === "weight";
       const isSleep = item.id === "sleep";
+      const isExercise = item.id === "exercise";
       const currentValue = recordValues[item.id] || "";
 
       return (
@@ -189,12 +234,16 @@ export default function TodayScreen() {
                 </Text>
               </YStack>
 
-              {(isWeight || isSleep) && (
+              {(isWeight || isSleep || isExercise) && (
                 <Button
                   size="$2"
                   chromeless
                   onPress={
-                    isWeight ? handleWeightCardPress : handleSleepCardPress
+                    isWeight
+                      ? handleWeightCardPress
+                      : isSleep
+                      ? handleSleepCardPress
+                      : handleExerciseCardPress
                   }
                   px="$2"
                   py="$1"
@@ -230,6 +279,25 @@ export default function TodayScreen() {
                 ))}
               </YStack>
             )}
+
+            {isExercise && currentValue && (
+              <YStack gap="$1">
+                {currentValue.split(" | ").map((info, index) => (
+                  <Text
+                    key={index}
+                    fontSize={16}
+                    style={{ color: textColor }}
+                    opacity={0.8}
+                  >
+                    {index === 0
+                      ? `类型：${info}`
+                      : index === 1
+                      ? `时长：${info}`
+                      : `强度：${info}`}
+                  </Text>
+                ))}
+              </YStack>
+            )}
           </YStack>
         </Card>
       );
@@ -240,6 +308,7 @@ export default function TodayScreen() {
       recordValues,
       handleWeightCardPress,
       handleSleepCardPress,
+      handleExerciseCardPress,
     ]
   );
 
@@ -551,6 +620,195 @@ export default function TodayScreen() {
                   style={{
                     backgroundColor: textColor,
                     opacity: 0.9,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: backgroundColor,
+                    }}
+                  >
+                    确认
+                  </Text>
+                </Button>
+              </XStack>
+            </YStack>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog>
+
+      {/* 运动记录 Dialog */}
+      <Dialog
+        modal
+        open={isExerciseDialogOpen}
+        onOpenChange={setIsExerciseDialogOpen}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay
+            key="overlay-exercise"
+            animation="quick"
+            opacity={0.5}
+            enterStyle={{ opacity: 0 }}
+            exitStyle={{ opacity: 0 }}
+          />
+          <Dialog.Content
+            bordered
+            elevate
+            key="content-exercise"
+            animateOnly={["transform", "opacity"]}
+            animation={[
+              "quick",
+              {
+                opacity: {
+                  overshootClamping: true,
+                },
+              },
+            ]}
+            enterStyle={{ x: 0, y: -20, opacity: 0, scale: 0.9 }}
+            exitStyle={{ x: 0, y: -20, opacity: 0, scale: 0.95 }}
+            gap="$4"
+            style={{
+              backgroundColor,
+              borderColor: "$borderColor",
+              position: "absolute",
+              top: insets.top + 24,
+              left: 16,
+              right: 16,
+              marginTop: 0,
+            }}
+          >
+            <Dialog.Title fontSize={18} style={{ color: textColor }}>
+              记录运动
+            </Dialog.Title>
+
+            <YStack gap="$3">
+              <YStack gap="$2">
+                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
+                  运动类型
+                </Text>
+                <XStack gap="$2" flexWrap="wrap">
+                  {["跑步", "游泳", "骑行", "瑜伽", "力量训练", "其他"].map(
+                    (type) => (
+                      <Button
+                        key={type}
+                        size="$3"
+                        chromeless
+                        onPress={() => setExerciseType(type)}
+                        style={{
+                          borderWidth: 1,
+                          borderColor:
+                            exerciseType === type ? textColor : "$borderColor",
+                          backgroundColor:
+                            exerciseType === type ? textColor : backgroundColor,
+                          opacity: exerciseType === type ? 0.9 : 0.8,
+                        }}
+                      >
+                        <Text
+                          fontSize={14}
+                          style={{
+                            color:
+                              exerciseType === type
+                                ? backgroundColor
+                                : textColor,
+                          }}
+                        >
+                          {type}
+                        </Text>
+                      </Button>
+                    )
+                  )}
+                </XStack>
+              </YStack>
+
+              <YStack gap="$2">
+                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
+                  时长（分钟）
+                </Text>
+                <Input
+                  size="$4"
+                  placeholder="请输入运动时长"
+                  value={exerciseDuration}
+                  onChangeText={setExerciseDuration}
+                  keyboardType="numeric"
+                  borderWidth={1}
+                  borderColor="$borderColor"
+                  style={{
+                    backgroundColor,
+                    color: textColor,
+                  }}
+                />
+              </YStack>
+
+              <YStack gap="$2">
+                <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
+                  运动强度
+                </Text>
+                <XStack gap="$2">
+                  {["轻松", "适中", "困难"].map((intensity) => (
+                    <Button
+                      key={intensity}
+                      size="$3"
+                      chromeless
+                      flex={1}
+                      onPress={() => setExerciseIntensity(intensity)}
+                      style={{
+                        borderWidth: 1,
+                        borderColor:
+                          exerciseIntensity === intensity
+                            ? textColor
+                            : "$borderColor",
+                        backgroundColor:
+                          exerciseIntensity === intensity
+                            ? textColor
+                            : backgroundColor,
+                        opacity: exerciseIntensity === intensity ? 0.9 : 0.8,
+                      }}
+                    >
+                      <Text
+                        fontSize={14}
+                        style={{
+                          color:
+                            exerciseIntensity === intensity
+                              ? backgroundColor
+                              : textColor,
+                        }}
+                      >
+                        {intensity}
+                      </Text>
+                    </Button>
+                  ))}
+                </XStack>
+              </YStack>
+
+              <XStack gap="$3" style={{ justifyContent: "flex-end" }}>
+                <Button
+                  size="$3"
+                  onPress={handleExerciseCancel}
+                  chromeless
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "$borderColor",
+                  }}
+                >
+                  <Text style={{ color: textColor }} opacity={0.8}>
+                    取消
+                  </Text>
+                </Button>
+                <Button
+                  size="$3"
+                  onPress={handleExerciseConfirm}
+                  disabled={
+                    !exerciseType.trim() ||
+                    !exerciseDuration.trim() ||
+                    !exerciseIntensity.trim()
+                  }
+                  style={{
+                    backgroundColor: textColor,
+                    opacity:
+                      !exerciseType.trim() ||
+                      !exerciseDuration.trim() ||
+                      !exerciseIntensity.trim()
+                        ? 0.5
+                        : 0.9,
                   }}
                 >
                   <Text
