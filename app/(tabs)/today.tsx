@@ -1,7 +1,9 @@
 import { useThemeColor } from "@/hooks/use-theme-color";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale/zh-CN";
 import { useCallback, useState } from "react";
+import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SortableGridRenderItem } from "react-native-sortables";
 import Sortable from "react-native-sortables";
@@ -44,8 +46,10 @@ export default function TodayScreen() {
   const [isWeightDialogOpen, setIsWeightDialogOpen] = useState(false);
   const [weightInput, setWeightInput] = useState("");
   const [isSleepDialogOpen, setIsSleepDialogOpen] = useState(false);
-  const [wakeUpTimeInput, setWakeUpTimeInput] = useState("");
-  const [sleepTimeInput, setSleepTimeInput] = useState("");
+  const [wakeUpTime, setWakeUpTime] = useState(new Date());
+  const [sleepTime, setSleepTime] = useState(new Date());
+  const [showWakeUpPicker, setShowWakeUpPicker] = useState(false);
+  const [showSleepPicker, setShowSleepPicker] = useState(false);
 
   // 计算已记录的数量
   const recordCount = Object.values(recordValues).filter(
@@ -75,36 +79,77 @@ export default function TodayScreen() {
     setWeightInput("");
   }, []);
 
+  // 将时间格式化为 HH:mm 格式
+  const formatTime = useCallback((date: Date) => {
+    return format(date, "HH:mm");
+  }, []);
+
+  // 解析时间字符串为 Date 对象
+  const parseTime = useCallback((timeStr: string, defaultDate: Date) => {
+    if (!timeStr) return defaultDate;
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    if (isNaN(hours) || isNaN(minutes)) return defaultDate;
+    const date = new Date(defaultDate);
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  }, []);
+
   const handleSleepCardPress = useCallback(() => {
-    // 如果已有记录，解析并预填充输入框
+    // 如果已有记录，解析并预填充时间
     const sleepValue = recordValues.sleep || "";
     if (sleepValue) {
-      const [wakeUp, sleep] = sleepValue.split(" | ");
-      setWakeUpTimeInput(wakeUp || "");
-      setSleepTimeInput(sleep || "");
+      const [wakeUpStr, sleepStr] = sleepValue.split(" | ");
+      const today = new Date();
+      setWakeUpTime(parseTime(wakeUpStr, today));
+      setSleepTime(parseTime(sleepStr, today));
     } else {
-      setWakeUpTimeInput("");
-      setSleepTimeInput("");
+      const now = new Date();
+      setWakeUpTime(now);
+      setSleepTime(now);
     }
     setIsSleepDialogOpen(true);
-  }, [recordValues.sleep]);
+  }, [recordValues.sleep, parseTime]);
+
+  const handleWakeUpTimeChange = useCallback(
+    (event: any, selectedDate?: Date) => {
+      if (Platform.OS === "android") {
+        setShowWakeUpPicker(false);
+      }
+      if (selectedDate) {
+        setWakeUpTime(selectedDate);
+      }
+    },
+    []
+  );
+
+  const handleSleepTimeChange = useCallback(
+    (event: any, selectedDate?: Date) => {
+      if (Platform.OS === "android") {
+        setShowSleepPicker(false);
+      }
+      if (selectedDate) {
+        setSleepTime(selectedDate);
+      }
+    },
+    []
+  );
 
   const handleSleepConfirm = useCallback(() => {
-    if (wakeUpTimeInput.trim() && sleepTimeInput.trim()) {
-      setRecordValues((prev) => ({
-        ...prev,
-        sleep: `${wakeUpTimeInput.trim()} | ${sleepTimeInput.trim()}`,
-      }));
-    }
+    const wakeUpStr = formatTime(wakeUpTime);
+    const sleepStr = formatTime(sleepTime);
+    setRecordValues((prev) => ({
+      ...prev,
+      sleep: `${wakeUpStr} | ${sleepStr}`,
+    }));
     setIsSleepDialogOpen(false);
-    setWakeUpTimeInput("");
-    setSleepTimeInput("");
-  }, [wakeUpTimeInput, sleepTimeInput]);
+    setShowWakeUpPicker(false);
+    setShowSleepPicker(false);
+  }, [wakeUpTime, sleepTime, formatTime]);
 
   const handleSleepCancel = useCallback(() => {
     setIsSleepDialogOpen(false);
-    setWakeUpTimeInput("");
-    setSleepTimeInput("");
+    setShowWakeUpPicker(false);
+    setShowSleepPicker(false);
   }, []);
 
   const renderItem = useCallback<SortableGridRenderItem<RecordItem>>(
@@ -382,39 +427,108 @@ export default function TodayScreen() {
                 <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
                   早晨起床时间
                 </Text>
-                <Input
-                  size="$4"
-                  placeholder="例如：07:30"
-                  value={wakeUpTimeInput}
-                  onChangeText={setWakeUpTimeInput}
-                  keyboardType="default"
-                  borderWidth={1}
-                  borderColor="$borderColor"
-                  style={{
-                    backgroundColor,
-                    color: textColor,
-                  }}
-                  autoFocus
-                />
+                {Platform.OS === "ios" ? (
+                  <DateTimePicker
+                    value={wakeUpTime}
+                    mode="time"
+                    display="spinner"
+                    onChange={handleWakeUpTimeChange}
+                    is24Hour={true}
+                    style={{
+                      backgroundColor: "transparent",
+                    }}
+                  />
+                ) : (
+                  <>
+                    <Button
+                      size="$4"
+                      chromeless
+                      onPress={() => setShowWakeUpPicker(true)}
+                      borderWidth={1}
+                      borderColor="$borderColor"
+                      style={{
+                        backgroundColor,
+                        justifyContent: "flex-start",
+                      }}
+                    >
+                      <Input
+                        size="$4"
+                        placeholder="选择起床时间"
+                        value={formatTime(wakeUpTime)}
+                        editable={false}
+                        borderWidth={0}
+                        style={{
+                          backgroundColor: "transparent",
+                          color: textColor,
+                          flex: 1,
+                        }}
+                      />
+                    </Button>
+                    {showWakeUpPicker && (
+                      <DateTimePicker
+                        value={wakeUpTime}
+                        mode="time"
+                        display="default"
+                        onChange={handleWakeUpTimeChange}
+                        is24Hour={true}
+                      />
+                    )}
+                  </>
+                )}
               </YStack>
 
               <YStack gap="$2">
                 <Text fontSize={14} style={{ color: textColor }} opacity={0.7}>
                   晚上就寝时间
                 </Text>
-                <Input
-                  size="$4"
-                  placeholder="例如：23:00"
-                  value={sleepTimeInput}
-                  onChangeText={setSleepTimeInput}
-                  keyboardType="default"
-                  borderWidth={1}
-                  borderColor="$borderColor"
-                  style={{
-                    backgroundColor,
-                    color: textColor,
-                  }}
-                />
+                {Platform.OS === "ios" ? (
+                  <DateTimePicker
+                    value={sleepTime}
+                    mode="time"
+                    display="spinner"
+                    onChange={handleSleepTimeChange}
+                    is24Hour={true}
+                    style={{
+                      backgroundColor: "transparent",
+                    }}
+                  />
+                ) : (
+                  <>
+                    <Button
+                      size="$4"
+                      chromeless
+                      onPress={() => setShowSleepPicker(true)}
+                      borderWidth={1}
+                      borderColor="$borderColor"
+                      style={{
+                        backgroundColor,
+                        justifyContent: "flex-start",
+                      }}
+                    >
+                      <Input
+                        size="$4"
+                        placeholder="选择就寝时间"
+                        value={formatTime(sleepTime)}
+                        editable={false}
+                        borderWidth={0}
+                        style={{
+                          backgroundColor: "transparent",
+                          color: textColor,
+                          flex: 1,
+                        }}
+                      />
+                    </Button>
+                    {showSleepPicker && (
+                      <DateTimePicker
+                        value={sleepTime}
+                        mode="time"
+                        display="default"
+                        onChange={handleSleepTimeChange}
+                        is24Hour={true}
+                      />
+                    )}
+                  </>
+                )}
               </YStack>
 
               <XStack gap="$3" style={{ justifyContent: "flex-end" }}>
